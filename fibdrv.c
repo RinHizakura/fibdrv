@@ -6,6 +6,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/uaccess.h>
 
 #include "BigN.h"
 
@@ -61,9 +62,12 @@ static ssize_t fib_read(struct file *file,
                         loff_t *offset)
 {
     struct BigN output = fib_sequence(*offset);
-    printBigN(&output);
-    printk(KERN_INFO "Fib(%lld): %s", *offset, output.num);
-    return 1;
+    int ret = printBigN(&output, size);
+    if (ret < 0 || ret > size)
+        return -1;
+    else {
+        return size - copy_to_user(buf, output.num, size);
+    }
 }
 
 /* write operation is skipped */

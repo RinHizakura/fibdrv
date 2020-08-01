@@ -1,6 +1,9 @@
+#define BUF_SIZE 128
+
 struct BigN {
     unsigned long long lower, upper;
-    char num[128];
+    char num[BUF_SIZE];
+    int cnt;
 };
 
 static inline void assignBigN(struct BigN *x, unsigned long long value)
@@ -19,7 +22,7 @@ static inline void addBigN(struct BigN *output, struct BigN x, struct BigN y)
 }
 
 // Helper function for big num print!
-void printBigN(struct BigN *x)
+int printBigN(struct BigN *x, size_t size)
 {
     unsigned int p0 = (x->upper) >> 32;
     unsigned int p1 = (x->upper) & 0x00000000FFFFFFFF;
@@ -47,16 +50,24 @@ void printBigN(struct BigN *x)
         r = r - d * 10;
         p3 = d;
 
-        x->num[cnt++] = (char) '0' + (r - 0);
+        if (cnt < BUF_SIZE)
+            x->num[cnt++] = (char) '0' + (r - 0);
+        else
+            goto too_small_buffer;
     } while (p0 || p1 || p2 || p3);
     x->num[cnt] = '\0';
+    x->cnt = cnt;
 
     int i = 0, j = cnt - 1;
-
     while (i < j) {
         char tmp;
         tmp = x->num[i];
         x->num[i++] = x->num[j];
         x->num[j--] = tmp;
     }
+
+    return cnt;
+
+too_small_buffer:
+    return -1;
 }

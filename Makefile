@@ -41,6 +41,7 @@ check: all
 	@scripts/verify.py
 
 perf:
+	$(MAKE) unload
 	$(MAKE) load
 	sudo ./client
 	$(MAKE) unload
