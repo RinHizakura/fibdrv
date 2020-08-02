@@ -18,10 +18,10 @@ MODULE_DESCRIPTION("Fibonacci engine driver");
 MODULE_VERSION("0.1");
 
 #define DEV_FIBONACCI_NAME "fibonacci"
-#define MAX_LENGTH 200
+#define MAX_LENGTH 185
 
 // 0 for naive fib, 1 for fast doubling
-#define FIB_VERSION 0
+#define FIB_VERSION 1
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
@@ -48,6 +48,7 @@ static struct BigN fib_sequence(unsigned long long k)
     return (struct BigN){.lower = low, .upper = high};
 }
 
+/*
 int digit(unsigned long long n)
 {
     int bits;
@@ -58,10 +59,13 @@ int digit(unsigned long long n)
     }
     return bits;
 }
-
+*/
 
 static struct BigN fast_fib(unsigned long long k)
 {
+    if (k == 0)
+        return (struct BigN){.lower = 0, .upper = 0};
+
     struct BigN a, b;
     assignBigN(&a, 0);
     assignBigN(&b, 1);
@@ -69,7 +73,8 @@ static struct BigN fast_fib(unsigned long long k)
     struct BigN bigTwo;
     assignBigN(&bigTwo, 2);
 
-    for (int i = digit(k); i > 0; i--) {
+
+    for (int i = 64 - __builtin_clzll(k); i > 0; i--) {
         struct BigN t1 = mulBigN(a, subBigN(mulBigN(bigTwo, b), a));
         struct BigN t2 = addBigN(mulBigN(b, b), mulBigN(a, a));
         a = t1;
@@ -139,7 +144,6 @@ static ssize_t fib_write(struct file *file,
                          loff_t *offset)
 {
     return ktime_to_ns(kt);
-    ;
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)
