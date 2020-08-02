@@ -4,8 +4,10 @@
 #include <linux/init.h>
 #include <linux/kdev_t.h>
 #include <linux/kernel.h>
+#include <linux/ktime.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 
 #include "BigN.h"
@@ -16,19 +18,22 @@ MODULE_DESCRIPTION("Fibonacci engine driver");
 MODULE_VERSION("0.1");
 
 #define DEV_FIBONACCI_NAME "fibonacci"
-#define MAX_LENGTH 101
+#define MAX_LENGTH 200
+
+// 0 for naive fib, 1 for fast doubling
 #define FIB_VERSION 0
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
+static ktime_t kt;
 
 
 static struct BigN fib_sequence(unsigned long long k)
 {
     /* FIXME: use clz/ctz and fast algorithms to speed up */
-    struct BigN f[k + 2];
+    struct BigN *f = kmalloc(sizeof(struct BigN) * (k + 2), GFP_KERNEL);
 
     assignBigN(&f[0], 0);
     assignBigN(&f[1], 1);
@@ -37,7 +42,10 @@ static struct BigN fib_sequence(unsigned long long k)
         f[i] = addBigN(f[i - 1], f[i - 2]);
     }
 
-    return f[k];
+    unsigned long long high = f[k].upper;
+    unsigned long long low = f[k].lower;
+    kfree(f);
+    return (struct BigN){.lower = low, .upper = high};
 }
 
 int digit(unsigned long long n)
@@ -76,6 +84,23 @@ static struct BigN fast_fib(unsigned long long k)
     return a;
 }
 
+static struct BigN fib_time_proxy(long long k)
+{
+    struct BigN output;
+
+    if (FIB_VERSION == 0) {
+        kt = ktime_get();
+        output = fib_sequence(k);
+        kt = ktime_sub(ktime_get(), kt);
+    } else {
+        kt = ktime_get();
+        output = fast_fib(k);
+        kt = ktime_sub(ktime_get(), kt);
+    }
+
+    return output;
+}
+
 static int fib_open(struct inode *inode, struct file *file)
 {
     if (!mutex_trylock(&fib_mutex)) {
@@ -97,11 +122,7 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
-    struct BigN output;
-    if (FIB_VERSION == 0)
-        output = fib_sequence(*offset);
-    else
-        output = fast_fib(*offset);
+    struct BigN output = fib_time_proxy(*offset);
 
     int ret = printBigN(&output, size);
     if (ret < 0 || ret > size)
@@ -117,7 +138,8 @@ static ssize_t fib_write(struct file *file,
                          size_t size,
                          loff_t *offset)
 {
-    return 1;
+    return ktime_to_ns(kt);
+    ;
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)
@@ -157,7 +179,7 @@ static int __init init_fib_dev(void)
     int rc = 0;
 
     mutex_init(&fib_mutex);
-
+    printk(KERN_INFO "FASTFIB flag = %d", FIB_VERSION);
     // Let's register the device
     // This will dynamically allocate the major number
     rc = alloc_chrdev_region(&fib_dev, 0, 1, DEV_FIBONACCI_NAME);

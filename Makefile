@@ -40,8 +40,8 @@ check: all
 	@diff -u out scripts/expected.txt && $(call pass)
 	@scripts/verify.py
 
-perf:
+perf: all
 	$(MAKE) unload
 	$(MAKE) load
-	sudo ./client
+	sudo taskset  0x20 ./client
 	$(MAKE) unload

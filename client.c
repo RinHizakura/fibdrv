@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define FIB_DEV "/dev/fibonacci"
@@ -10,11 +11,9 @@
 
 int main()
 {
-    long long sz;
-
     char buf[BUF_SIZE];
     char write_buf[] = "testing writing";
-    int offset = 100; /* TODO: try test something bigger than the limit */
+    int offset = 200; /* TODO: try test something bigger than the limit */
 
     int fd = open(FIB_DEV, O_RDWR);
     if (fd < 0) {
@@ -22,28 +21,25 @@ int main()
         exit(1);
     }
 
+    struct timespec tt1, tt2;
     for (int i = 0; i <= offset; i++) {
-        sz = write(fd, write_buf, strlen(write_buf));
-        printf("Writing to " FIB_DEV ", returned the sequence %lld\n", sz);
+        lseek(fd, i, SEEK_SET);
+        clock_gettime(CLOCK_REALTIME, &tt1);
+        read(fd, buf, BUF_SIZE);
+        clock_gettime(CLOCK_REALTIME, &tt2);
+        printf("%d, %ld, %s\n", i, tt2.tv_nsec - tt1.tv_nsec, buf);
+        /*printf("Reading from " FIB_DEV
+               " at offset %d, returned the sequence "
+               "%s.\n",
+               i, buf);*/
     }
 
 
     for (int i = 0; i <= offset; i++) {
         lseek(fd, i, SEEK_SET);
-        sz = read(fd, buf, BUF_SIZE);
-        printf("Reading from " FIB_DEV
-               " at offset %d, returned the sequence "
-               "%s.\n",
-               i, buf);
-    }
-
-    for (int i = offset; i >= 0; i--) {
-        lseek(fd, i, SEEK_SET);
-        sz = read(fd, buf, BUF_SIZE);
-        printf("Reading from " FIB_DEV
-               " at offset %d, returned the sequence "
-               "%s.\n",
-               i, buf);
+        read(fd, buf, BUF_SIZE);
+        printf("%d, %ld, %s\n", i, write(fd, write_buf, strlen(write_buf)),
+               buf);
     }
 
     close(fd);
