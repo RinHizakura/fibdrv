@@ -16,8 +16,8 @@ MODULE_DESCRIPTION("Fibonacci engine driver");
 MODULE_VERSION("0.1");
 
 #define DEV_FIBONACCI_NAME "fibonacci"
-
 #define MAX_LENGTH 101
+#define FIB_VERSION 0
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
@@ -34,10 +34,46 @@ static struct BigN fib_sequence(unsigned long long k)
     assignBigN(&f[1], 1);
 
     for (int i = 2; i <= k; i++) {
-        addBigN(&f[i], f[i - 1], f[i - 2]);
+        f[i] = addBigN(f[i - 1], f[i - 2]);
     }
 
     return f[k];
+}
+
+int digit(unsigned long long n)
+{
+    int bits;
+    for (bits = 64; bits > 0; --bits) {
+        if (n & 0x8000000000000000)
+            break;
+        n <<= 1;
+    }
+    return bits;
+}
+
+
+static struct BigN fast_fib(unsigned long long k)
+{
+    struct BigN a, b;
+    assignBigN(&a, 0);
+    assignBigN(&b, 1);
+
+    struct BigN bigTwo;
+    assignBigN(&bigTwo, 2);
+
+    for (int i = digit(k); i > 0; i--) {
+        struct BigN t1 = mulBigN(a, subBigN(mulBigN(bigTwo, b), a));
+        struct BigN t2 = addBigN(mulBigN(b, b), mulBigN(a, a));
+        a = t1;
+        b = t2;
+        if ((k >> (i - 1)) % 2 == 1) {
+            t1 = addBigN(a, b);  // m++
+            a = b;
+            b = t1;
+        }
+    }
+
+    return a;
 }
 
 static int fib_open(struct inode *inode, struct file *file)
@@ -61,7 +97,12 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
-    struct BigN output = fib_sequence(*offset);
+    struct BigN output;
+    if (FIB_VERSION == 0)
+        output = fib_sequence(*offset);
+    else
+        output = fast_fib(*offset);
+
     int ret = printBigN(&output, size);
     if (ret < 0 || ret > size)
         return -1;
