@@ -46,5 +46,6 @@ plt.ylabel('time(ns)')
 plt.plot(x, ktime_collect, marker = '+', markersize = 7, label = 'kernel')
 plt.plot(x, utime_collect, marker = '*', markersize = 3, label = 'user')
 plt.plot(x, ktou_time_collect, marker = '^', markersize = 3, label = 'kernel to user')
+plt.legend(loc = 'upper left')
 
 plt.show()
