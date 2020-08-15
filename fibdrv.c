@@ -20,9 +20,6 @@ MODULE_VERSION("0.1");
 #define DEV_FIBONACCI_NAME "fibonacci"
 #define MAX_LENGTH 185
 
-// 0 for naive fib, 1 for fast doubling
-#define FIB_VERSION 1
-
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
 static struct class *fib_class;
@@ -30,6 +27,7 @@ static DEFINE_MUTEX(fib_mutex);
 static ktime_t kt;
 
 
+#ifndef FIB
 static struct BigN fib_sequence(unsigned long long k)
 {
     /* FIXME: use clz/ctz and fast algorithms to speed up */
@@ -48,20 +46,8 @@ static struct BigN fib_sequence(unsigned long long k)
     return (struct BigN){.lower = low, .upper = high};
 }
 
-/*
-int digit(unsigned long long n)
-{
-    int bits;
-    for (bits = 64; bits > 0; --bits) {
-        if (n & 0x8000000000000000)
-            break;
-        n <<= 1;
-    }
-    return bits;
-}
-*/
-
-static struct BigN fast_fib(unsigned long long k)
+#else
+static struct BigN fib_sequence(unsigned long long k)
 {
     if (k == 0)
         return (struct BigN){.lower = 0, .upper = 0};
@@ -88,20 +74,15 @@ static struct BigN fast_fib(unsigned long long k)
 
     return a;
 }
+#endif
 
 static struct BigN fib_time_proxy(long long k)
 {
     struct BigN output;
 
-    if (FIB_VERSION == 0) {
-        kt = ktime_get();
-        output = fib_sequence(k);
-        kt = ktime_sub(ktime_get(), kt);
-    } else {
-        kt = ktime_get();
-        output = fast_fib(k);
-        kt = ktime_sub(ktime_get(), kt);
-    }
+    kt = ktime_get();
+    output = fib_sequence(k);
+    kt = ktime_sub(ktime_get(), kt);
 
     return output;
 }
@@ -183,7 +164,6 @@ static int __init init_fib_dev(void)
     int rc = 0;
 
     mutex_init(&fib_mutex);
-    printk(KERN_INFO "FASTFIB flag = %d", FIB_VERSION);
     // Let's register the device
     // This will dynamically allocate the major number
     rc = alloc_chrdev_region(&fib_dev, 0, 1, DEV_FIBONACCI_NAME);

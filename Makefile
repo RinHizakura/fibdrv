@@ -9,6 +9,12 @@ PWD := $(shell pwd)
 
 GIT_HOOKS := .git/hooks/applied
 
+FIB ?= 1
+ifeq ("$(FIB)","1")
+	ccflags-y += -DFAST
+endif
+
+
 all: $(GIT_HOOKS) client
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
